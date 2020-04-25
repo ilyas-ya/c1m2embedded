@@ -26,7 +26,7 @@ include sources.mk
 
 ifeq ($(PLATFORM),MSP432)
 # Architectures Specific Flags
-LINKER_FILE = msp432p401r.lds
+LINKER_FILE = ../msp432p401r.lds
 CPU = cortex-m4
 ARCH = thumb
 ARCHARM = armv7e-m
@@ -36,25 +36,46 @@ FPU= fpv4-sp-d16
 # Compiler Flags and Defines
 CC = arm-none-eabi-gcc
 LD = arm-none-eabi-ld
-PTARGET= MSP432
-TARGET = c1m2
 LDFLAGS = -Wl,-Map=$(TARGET).map -T $(LINKER_FILE)
 CFLAGS = -mcpu=$(CPU) -m$(ARCH) -Wall -std=c99 -g -O0 -Werror -march=$(ARCHARM) -mfloat-abi=$(FLOAT) -mfpu=$(FPU) --specs=$(SPECS) 
-CPPFLAGS = -M -D$(PTARGET)
+CPPFLAGS = -MD
 
-else 
+else ifeq ($(PLATFORM),HOST) 
 
 CC= gcc
-TARGET= c1m2
-PTARGET= HOST
-CPPFLAGS= -D$(PTARGET)
+LDFLAGS= -Wl,-Map=$(TARGET).map
+CFLAGS= -Wall -Werror -g -O0 -std=c99
+CPPFLAGS= -MD
 endif
 
+TARGET= c1m1
 
 OBJS=$(SOURCES:.c=.o)
+PREPROCS=$(SOURCES:.c=.i)
+DEPENDS=$(SOURCES:.c=.d)
+ASSEMB=$(SOURCES:.c=.asm)
+
+#Without linking
+.PHONY: %.i
+%.i: %.c
+	$(CC) -E $< -o $@ $(CFLAGS) -D$(PLATFORM)
+
+.PHONY: %.asm
+%.asm: %.c
+	$(CC) -S $< -o $@ $(CFLAGS) -D$(PLATFORM)
 
 %.o: %.c
-	$(CC) -c $< $(CFLAGS) $(CPPFLAGS) -o $@
+	$(CC) -c $< -o $@ $(CFLAGS) $(CPPFLAGS) -D$(PLATFORM)
+
+
+.PHONY: compile-all
+compile-all:
+	$(CC) -c $(SOURCES) -D$(PLATFORM) $(INCLUDES) $(CFLAGS) $(CPPFLAGS)
+
+
+
+
+#with linking
 
 .PHONY: build
 build: all
@@ -63,18 +84,10 @@ build: all
 all: $(TARGET).out
 
 $(TARGET).out: $(OBJS)
-	$(CC) $(OBJS) $(CFLAGS) $(INCLUDES) $(CPPFLAGS) $(LDFLAGS) -o $@
+	$(CC) $(OBJS) $(CFLAGS) $(INCLUDES) $(CPPFLAGS) $(LDFLAGS) -D$(PLATFORM) -o $@
 
 .PHONY: clean
 clean:
-	rm -f $(OBJS) $(TARGET).out $(TARGET).map
-
-.PHONY: %.i
-%.i: $(OBJS)
-	$(CC) -E $(OBJS) -o $@
-
-.PHONY: %.asm
-%.asm:
-	$(CC) -S $(OBJS) -o $@
+	rm -f $(OBJS) $(TARGET).out $(TARGET).map $(PREPROCS) $(DEPENDS) $(ASSEMB)
 
  
